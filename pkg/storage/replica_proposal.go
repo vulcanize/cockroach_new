@@ -31,6 +31,7 @@ import (
 	"github.com/coreos/etcd/raft"
 	"github.com/kr/pretty"
 	"github.com/pkg/errors"
+	"github.com/vulcanize/raft2tmsp"
 )
 
 // LocalProposalData is data belonging to a proposal that is only relevant
@@ -370,7 +371,7 @@ func (r *Replica) leasePostApply(
 func (r *Replica) maybeTransferRaftLeadership(
 	ctx context.Context, replicaID roachpb.ReplicaID, target roachpb.ReplicaID,
 ) {
-	err := r.withRaftGroup(func(raftGroup *raft.RawNode) (bool, error) {
+	err := r.withRaftGroup(func(raftGroup *raft2tmsp.RawNode) (bool, error) {
 		if raftGroup.Status().RaftState == raft.StateLeader {
 			// Only the raft leader can attempt a leadership transfer.
 			log.Infof(ctx, "range %s: transferring raft leadership to replica ID %v",

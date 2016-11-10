@@ -55,6 +55,7 @@ import (
 	"github.com/cockroachdb/cockroach/pkg/util/stop"
 	"github.com/cockroachdb/cockroach/pkg/util/syncutil"
 	"github.com/cockroachdb/cockroach/pkg/util/uuid"
+	"github.com/vulcanize/raft2tmsp"
 )
 
 var defaultMuLogger = syncutil.ThresholdLogger(
@@ -498,7 +499,7 @@ func TestStoreRemoveReplicaDestroy(t *testing.T) {
 
 	// Verify that removal of a replica marks it as destroyed so that future raft
 	// commands on the Replica will silently be dropped.
-	if err := repl1.withRaftGroup(func(r *raft.RawNode) (bool, error) {
+	if err := repl1.withRaftGroup(func(r *raft2tmsp.RawNode) (bool, error) {
 		return true, errors.Errorf("unexpectedly created a raft group")
 	}); err != nil {
 		t.Fatal(err)

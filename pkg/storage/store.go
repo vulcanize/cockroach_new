@@ -34,6 +34,8 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 
+	"github.com/vulcanize/raft2tmsp"
+
 	"github.com/cockroachdb/cockroach/pkg/base"
 	"github.com/cockroachdb/cockroach/pkg/build"
 	"github.com/cockroachdb/cockroach/pkg/config"
@@ -2877,7 +2879,7 @@ func (s *Store) processRaftRequest(
 			if err != nil {
 				return roachpb.NewError(err)
 			}
-			raftGroup, err := raft.NewRawNode(
+			raftGroup, err := raft2tmsp.NewRawNode(
 				newRaftConfig(
 					raft.Storage(r),
 					preemptiveSnapshotRaftGroupID,
@@ -2930,7 +2932,7 @@ func (s *Store) processRaftRequest(
 			r.store.StoreID(), req.RangeID)
 	}
 
-	if err := r.withRaftGroup(func(raftGroup *raft.RawNode) (bool, error) {
+	if err := r.withRaftGroup(func(raftGroup *raft2tmsp.RawNode) (bool, error) {
 		// We're processing a message from another replica which means that the
 		// other replica is not quiesced, so we don't need to wake the leader.
 		r.unquiesceLocked()

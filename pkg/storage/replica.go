@@ -38,6 +38,8 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 
+	"github.com/vulcanize/raft2tmsp"
+
 	"github.com/cockroachdb/cockroach/pkg/config"
 	"github.com/cockroachdb/cockroach/pkg/gossip"
 	"github.com/cockroachdb/cockroach/pkg/internal/client"
@@ -331,7 +333,7 @@ type Replica struct {
 		// map must only be referenced while Replica.mu is held, except if the
 		// element is removed from the map first.
 		proposals         map[storagebase.CmdIDKey]*ProposalData
-		internalRaftGroup *raft.RawNode
+		internalRaftGroup *raft2tmsp.RawNode
 		// The ID of the replica within the Raft group. May be 0 if the replica has
 		// been created from a preemptive snapshot (i.e. before being added to the
 		// Raft group). The replica ID will be non-zero whenever the replica is
@@ -430,7 +432,7 @@ var _ KeyRange = &Replica{}
 //
 // Requires that both Replica.mu and Replica.raftMu are held.
 func (r *Replica) withRaftGroupLocked(
-	shouldCampaign bool, f func(r *raft.RawNode) (unquiesceAndWakeLeader bool, _ error),
+	shouldCampaign bool, f func(r *raft2tmsp.RawNode) (unquiesceAndWakeLeader bool, _ error),
 ) error {
 	if r.mu.destroyed != nil {
 		// Silently ignore all operations on destroyed replicas. We can't return an
@@ -454,7 +456,7 @@ func (r *Replica) withRaftGroupLocked(
 	ctx := r.AnnotateCtx(context.TODO())
 
 	if r.mu.internalRaftGroup == nil {
-		raftGroup, err := raft.NewRawNode(newRaftConfig(
+		raftGroup, err := raft2tmsp.NewRawNode(newRaftConfig(
 			raft.Storage(r),
 			uint64(r.mu.replicaID),
 			r.mu.state.RaftAppliedIndex,
@@ -519,7 +521,7 @@ func (r *Replica) withRaftGroupLocked(
 //
 // Requires that Replica.raftMu is held.
 func (r *Replica) withRaftGroup(
-	f func(r *raft.RawNode) (unquiesceAndWakeLeader bool, _ error),
+	f func(r *raft2tmsp.RawNode) (unquiesceAndWakeLeader bool, _ error),
 ) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -2057,7 +2059,7 @@ func defaultSubmitProposalLocked(r *Replica, p *ProposalData) error {
 			return err
 		}
 
-		return r.withRaftGroupLocked(true, func(raftGroup *raft.RawNode) (bool, error) {
+		return r.withRaftGroupLocked(true, func(raftGroup *raft2tmsp.RawNode) (bool, error) {
 			// We're proposing a command here so there is no need to wake the
 			// leader if we were quiesced.
 			r.unquiesceLocked()
@@ -2070,7 +2072,7 @@ func defaultSubmitProposalLocked(r *Replica, p *ProposalData) error {
 		})
 	}
 
-	return r.withRaftGroupLocked(true, func(raftGroup *raft.RawNode) (bool, error) {
+	return r.withRaftGroupLocked(true, func(raftGroup *raft2tmsp.RawNode) (bool, error) {
 		if log.V(4) {
 			log.Infof(ctx, "proposing command %x", p.idKey)
 		}
@@ -2172,7 +2174,7 @@ func (r *Replica) handleRaftReadyRaftMuLocked(inSnap IncomingSnapshot) error {
 	lastIndex := r.mu.lastIndex // used for append below
 	raftLogSize := r.mu.raftLogSize
 	leaderID := r.mu.leaderID
-	err := r.withRaftGroupLocked(false, func(raftGroup *raft.RawNode) (bool, error) {
+	err := r.withRaftGroupLocked(false, func(raftGroup *raft2tmsp.RawNode) (bool, error) {
 		if hasReady = raftGroup.HasReady(); hasReady {
 			rd = raftGroup.Ready()
 		}
@@ -2353,7 +2355,7 @@ func (r *Replica) handleRaftReadyRaftMuLocked(inSnap IncomingSnapshot) error {
 				// If processRaftCommand failed, tell raft that the config change was aborted.
 				cc = raftpb.ConfChange{}
 			}
-			if err := r.withRaftGroup(func(raftGroup *raft.RawNode) (bool, error) {
+			if err := r.withRaftGroup(func(raftGroup *raft2tmsp.RawNode) (bool, error) {
 				raftGroup.ApplyConfChange(cc)
 				return true, nil
 			}); err != nil {
@@ -2372,7 +2374,7 @@ func (r *Replica) handleRaftReadyRaftMuLocked(inSnap IncomingSnapshot) error {
 	// TODO(bdarnell): need to check replica id and not Advance if it
 	// has changed. Or do we need more locking to guarantee that replica
 	// ID cannot change during handleRaftReady?
-	return r.withRaftGroup(func(raftGroup *raft.RawNode) (bool, error) {
+	return r.withRaftGroup(func(raftGroup *raft2tmsp.RawNode) (bool, error) {
 		raftGroup.Advance(rd)
 		return true, nil
 	})
@@ -2854,7 +2856,7 @@ func (r *Replica) sendRaftMessage(ctx context.Context, msg raftpb.Message) {
 		FromReplica: fromReplica,
 		Message:     msg,
 	}) {
-		if err := r.withRaftGroup(func(raftGroup *raft.RawNode) (bool, error) {
+		if err := r.withRaftGroup(func(raftGroup *raft2tmsp.RawNode) (bool, error) {
 			r.mu.droppedMessages++
 			raftGroup.ReportUnreachable(msg.To)
 			return true, nil
@@ -2903,7 +2905,7 @@ func (r *Replica) reportSnapshotStatus(to uint64, snapErr error) {
 		snapStatus = raft.SnapshotFailure
 	}
 
-	if err := r.withRaftGroup(func(raftGroup *raft.RawNode) (bool, error) {
+	if err := r.withRaftGroup(func(raftGroup *raft2tmsp.RawNode) (bool, error) {
 		raftGroup.ReportSnapshot(to, snapStatus)
 		return true, nil
 	}); err != nil {
