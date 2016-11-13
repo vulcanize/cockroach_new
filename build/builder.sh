@@ -63,7 +63,7 @@ host_home="${cockroach_toplevel}/build/builder_home"
 passwd_file="${host_home}/passwd"
 username=$(id -un)
 uid_gid="$(id -u):$(id -g)"
-mkdir -p "${host_home}"
+mkdir -p "${host_home}/.ssh"
 echo "${username}:x:${uid_gid}::${container_home}:/bin/bash" > "${passwd_file}"
 echo "${PRIVATE_KEY}" > "${host_home}/.ssh/id_rsa"
 
