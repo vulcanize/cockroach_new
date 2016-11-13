@@ -65,6 +65,7 @@ username=$(id -un)
 uid_gid="$(id -u):$(id -g)"
 mkdir -p "${host_home}"
 echo "${username}:x:${uid_gid}::${container_home}:/bin/bash" > "${passwd_file}"
+echo "${PRIVATE_KEY}" > "${host_home}/.ssh/id_rsa"
 
 # Ensure that all directories to which the container must be able to write are
 # created as the invoking user. Docker would otherwise create them when
